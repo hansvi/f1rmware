@@ -2,19 +2,22 @@
 #include <r0ketlib/idle.h>
 #include <r0ketlib/keyin.h>
 #include <r0ketlib/print.h>
+#include <r0ketlib/display.h>
 #include <rad1olib/setup.h>
 #include <rad1olib/audio.h>
+#include <rad1olib/systick.h>
 #include <math.h>
 #include <r0ketlib/itoa.h>
-
 
 #define M_PI (3.14159265358979323846264338327950f)
 
 
 #define MAX_SAMPLE_VAL 585  // No clipping!
-#define AUDIO_BUFSIZE 1000
-#define AUDIO_RATE    32000
-#define RITIMER_SPEED   204000000
+#define AUDIO_BUFSIZE  1000
+#define AUDIO_RATE     32000
+#define RITIMER_SPEED  204000000
+#define REPEAT_DELAY   400  // freq up/down repeat while holding the joystick
+
 static uint16_t audio_buf[AUDIO_BUFSIZE];
 
 static int tone_volume = 5;
@@ -32,7 +35,7 @@ static void push_next_value();
 static void tone_begin()
 {
 	cpu_clock_set(204); // Turbo mode
-	delayms(500);
+//	delayms(500);
 	audio_init(audio_buf, AUDIO_BUFSIZE, AUDIO_RATE, RITIMER_SPEED);
 	lcdClear();
 	update_volume();
@@ -48,7 +51,7 @@ static void tone_end()
 {
 	audio_stop();
 	cpu_clock_set(102);
-	delayms(500);
+//	delayms(500);
 }
 
 static void push_next_value()
@@ -116,6 +119,7 @@ void tone_show()
 	uint8_t old_btn, new_btn=BTN_NONE, pressed_btn;
 	bool running = true;
 	tone_begin();
+	uint32_t last_audiofreq_update = 0;
 
 	while(running)
 	{
@@ -126,18 +130,30 @@ void tone_show()
 		if(pressed_btn & BTN_UP)
 		{
 			increase_volume();
+			delayms(50); // Lame debounce
 		}
 		if(pressed_btn & BTN_DOWN)
 		{
 			decrease_volume();
+			delayms(50); // Lame debounce
 		}
-		if(pressed_btn & BTN_LEFT)
+		if(new_btn & BTN_LEFT)
 		{
-			decrease_frequency();
+			uint32_t now = getTimer();
+			if((now-last_audiofreq_update) > REPEAT_DELAY)
+			{
+				decrease_frequency();
+				last_audiofreq_update = now;
+			}
 		}
-		if(pressed_btn & BTN_RIGHT)
+		if(new_btn & BTN_RIGHT)
 		{
-			increase_frequency();
+			uint32_t now = getTimer();
+			if((now-last_audiofreq_update) > REPEAT_DELAY)
+			{
+				increase_frequency();
+				last_audiofreq_update = now;
+			}
 		}
 		if(pressed_btn & BTN_ENTER)
 		{
